@@ -21,17 +21,39 @@ const LoginForm: React.FC = () => {
       await signIn(email, password);
       navigate('/admin');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to sign in');
+      let errorMessage = 'Failed to sign in. Please check your credentials and try again.';
+      if (err instanceof Error) {
+        // Default to the error's message if it's more specific than the generic one
+        errorMessage = err.message || errorMessage;
+
+        // Check for Supabase AuthApiError specifics or network issues
+        // Supabase AuthError often has a __isAuthError property or specific name/status
+        if ((err as any).__isAuthError || err.name === 'AuthApiError' || err.name === 'AuthRetryableFetchError') {
+          const authError = err as any; // Type assertion to access status
+          if (authError.status === 400) {
+            errorMessage = 'Invalid email or password. Please try again.';
+          } else if (authError.status === 401 || authError.status === 403) {
+            errorMessage = 'Authentication issue detected. Your session might be invalid. Please try refreshing the page and signing in again.';
+          } else if (authError.status >= 500) {
+            errorMessage = 'A server error occurred. Please try again later or refresh the page.';
+          } else if (authError.status === 429) { // Too many requests
+             errorMessage = 'Too many attempts. Please try again later.';
+          }
+        } else if (err.message.toLowerCase().includes('network') || err.message.toLowerCase().includes('failed to fetch')) {
+          errorMessage = 'Network error. Please check your internet connection and try again. Refreshing the page may also help.';
+        }
+      }
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow-md">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-6 sm:space-y-8 p-6 sm:p-8 bg-white rounded-lg shadow-md">
         <div>
-          <h2 className="text-center text-3xl font-bold text-gray-900">
+          <h2 className="text-center text-2xl sm:text-3xl font-bold text-gray-900">
             Admin Login
           </h2>
         </div>
