@@ -54,17 +54,53 @@ export const useAuth = () => {
   };
 
   const signIn = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) throw error;
-    return data;
+    setLoading(true); // Indicate that an auth operation is in progress
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        // Clear user state and update role/loading status on error
+        setUser(null);
+        await checkUserRole(undefined); // This ensures loading is false and isAdmin is false
+        throw error;
+      }
+
+      if (data.user) {
+        setUser(data.user); // Update user state immediately
+        await checkUserRole(data.user.id); // Await the role check to complete
+                                          // checkUserRole will set loading to false
+      } else {
+        // This case should ideally not be reached if there's no error,
+        // but handle it defensively.
+        setUser(null);
+        await checkUserRole(undefined); // Ensures loading is false and isAdmin is false
+      }
+      return data;
+    } catch (error) {
+      // If any error occurs (either from Supabase or during our state updates)
+      // ensure auth state is reset and loading is false.
+      // checkUserRole(undefined) handles this if not already called.
+      // The primary throw is above, this catch is more for unforeseen issues.
+      if (user !== null || isAdmin !== false) { // Avoid redundant call if already reset
+        setUser(null);
+        await checkUserRole(undefined);
+      }
+      throw error; // Re-throw the error to be caught by the calling component
+    }
   };
 
   const signOut = async () => {
+    setLoading(true); // Set loading true, onAuthStateChange will set it to false after processing.
     const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    if (error) {
+      console.error("Error signing out:", error);
+      setLoading(false); // If signOut itself fails, revert loading state.
+      throw error;
+    }
+    // If successful, onAuthStateChange handles the rest (setUser, checkUserRole, setLoading(false)).
   };
 
   return {
